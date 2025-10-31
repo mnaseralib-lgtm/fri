@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Google Sheets Report Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@18.2.0",
+          "react-dom/client": "https://esm.sh/react-dom@18.2.0/client"
+        }
+      }
+    </script>
+  </head>
+  <body class="bg-gray-900 text-gray-100">
+    <div id="root"></div>
+    <script type="module">
+      import React from 'react';
+      import ReactDOM from 'react-dom/client';
+
+      const { useState, useEffect, useCallback, useMemo } = React;
+
+      // --- Start of Embedded App Code ---
+
+      // --- Module: types.ts ---
+      const ReportType = {
+        EMPLOYEE: 'employee',
+        DAILY: 'daily',
+        RANGE: 'range',
+      };
+
+      // --- Module: services/googleSheetsService.ts ---
+      const createGoogleSheetsServiceModule = () => {
+        const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwveOFn2qJF7ysNHWd0U3Qcmp5JW5rUCeMjwENo3XEz8mYJxO3bi_UoBvr42gG5VSLi/exec';
+
+        const fetchFromGAS = async (params) => {
+          if (GAS_WEB_APP_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
+            throw new Error('Please update the GAS_WEB_APP_URL');
+          }
+          const url = new URL(GAS_WEB_APP_URL);
+          url.search = params.toString();
+          
+          const response = await fetch(url.toString(), {
+              method: 'GET',
+              headers: {
+                  'Content-Type': 'application/json',
+              },
+          });
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Network response was not ok. Status: ${response.status}. Details: ${errorText}`);
+          }
+          
+          // Use response.text() first to handle potential empty responses from redirects
+          const text = await response.text();
+          if (!text) {
+              // This can happen if the script redirects. Let's assume an empty but successful response.
+              console.warn("Received an empty response, possibly due to a redirect. Treating as empty data.");
+              return { records: [] }; // Return an empty structure to avoid crashing
+          }
+          
+          const data = JSON.parse(text);
+
+          if (data.status === 'error') {
+            throw new Error(`Google Apps Script Error: ${data.message}`);
+          }
+          return data.data;
+        };
+
+        const fetchEmployees = async () => {
+          const params = new URLSearchParams({ action: 'getEmployees' });
+          return fetchFromGAS(params);
+        };
+
+        const fetchReport = async (reportParams) => {
+          const params = new URLSearchParams({ action: 'generateReport' });
+          Object.entries(reportParams).forEach(([key, value]) => {
+            if (value) {
+              params.append(key, String(value));
+            }
+          });
+          return fetchFromGAS(params);
+        };
+
+        return { fetchEmployees, fetchReport };
+      };
+
+      // --- Module: components/icons.tsx ---
+      const createIconsModule = () => {
+        const iconProps = {
+          className: "h-6 w-6",
+          strokeWidth: "1.5",
+          stroke: "currentColor",
+          fill: "none",
+          strokeLinecap: "round",
+          strokeLinejoin: "round",
+        };
+        const ClockIcon = (props) => React.createElement("svg", { ...iconProps, ...props }, React.createElement("path", { stroke: "none", d: "M0 0h24v24H0z", fill: "none" }), React.createElement("path", { d: "M3 12a9 9 0 1 0 18 0a9 9 0 0 0 -18 0" }), React.createElement("path", { d: "M12 7v5l3 3" }));
+        const UsersIcon = (props) => React.createElement("svg", { ...iconProps, ...props }, React.createElement("path", { stroke: "none", d: "M0 0h24v24H0z", fill: "none" }), React.createElement("path", { d: "M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" }), React.createElement("path", { d: "M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" }), React.createElement("path", { d: "M16 3.13a4 4 0 0 1 0 7.75" }), React.createElement("path", { d: "M21 21v-2a4 4 0 0 0 -3 -3.85" }));
+        const UserIcon = (props) => React.createElement("svg", { ...iconProps, ...props }, React.createElement("path", { stroke: "none", d: "M0 0h24v24H0z", fill: "none" }), React.createElement("path", { d: "M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0" }), React.createElement("path", { d: "M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" }));
+        const BriefcaseIcon = (props) => React.createElement("svg", { ...iconProps, ...props }, React.createElement("path", { stroke: "none", d: "M0 0h24v24H0z", fill: "none" }), React.createElement("path", { d: "M3 7m0 2a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2z" }), React.createElement("path", { d: "M8 7v-2a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2" }), React.createElement("path", { d: "M12 12l0 .01" }), React.createElement("path", { d: "M3 13a20 20 0 0 0 18 0" }));
+        const CalendarIcon = (props) => React.createElement("svg", { ...iconProps, ...props }, React.createElement("path", { stroke: "none", d: "M0 0h24v24H0z", fill: "none" }), React.createElement("path", { d: "M4 7a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2v-12z" }), React.createElement("path", { d: "M16 3v4" }), React.createElement("path", { d: "M8 3v4" }), React.createElement("path", { d: "M4 11h16" }), React.createElement("path", { d: "M11 15h1" }), React.createElement("path", { d: "M12 15v3" }));
+        return { ClockIcon, UsersIcon, UserIcon, BriefcaseIcon, CalendarIcon };
+      };
+      
+      // --- Module: components/SummaryCard.tsx ---
+      const createSummaryCardModule = () => {
+          const SummaryCard = ({ icon, title, value }) => {
+            return React.createElement("div", { className: "bg-gray-800 p-5 rounded-lg shadow-lg flex items-center space-x-4" },
+              React.createElement("div", { className: "flex-shrink-0 w-12 h-12 bg-gray-700 rounded-full flex items-center justify-center text-indigo-400" }, icon),
+              React.createElement("div", { className: "flex-1 min-w-0" },
+                React.createElement("p", { className: "text-sm font-medium text-gray-400 truncate" }, title),
+                React.createElement("p", { className: "text-xl font-semibold text-white truncate" }, value)
+              )
+            );
+          };
+          return { SummaryCard };
+      };
+
+      // --- Module: components/ReportControls.tsx ---
+      const createReportControlsModule = () => {
+        const ReportControls = ({ onGenerateReport, isLoading }) => {
+          const [reportType, setReportType] = useState(ReportType.DAILY);
+          const [employeeId, setEmployeeId] = useState('');
+          const today = new Date().toISOString().split('T')[0];
+          const [date, setDate] = useState(today);
+          const [startDate, setStartDate] = useState(today);
+          const [endDate, setEndDate] = useState(today);
+
+          const handleSubmit = (e) => {
+            e.preventDefault();
+            const params = { reportType };
+            if (reportType === ReportType.EMPLOYEE) {
+              if (!employeeId) {
+                alert("Please enter an employee ID.");
+                return;
+              }
+              params.employeeId = employeeId;
+              params.startDate = startDate;
+              params.endDate = endDate;
+            } else if (reportType === ReportType.DAILY) {
+              params.date = date;
+            } else if (reportType === ReportType.RANGE) {
+              params.startDate = startDate;
+              params.endDate = endDate;
+            }
+            onGenerateReport(params);
+          };
+
+          const renderDateInputs = () => {
+            switch (reportType) {
+              case ReportType.EMPLOYEE:
+              case ReportType.RANGE:
+                return React.createElement(React.Fragment, null,
+                  React.createElement("div", { className: "flex-1" },
+                    React.createElement("label", { htmlFor: "startDate", className: "block text-sm font-medium text-gray-400" }, "Start Date"),
+                    React.createElement("input", { type: "date", id: "startDate", value: startDate, onChange: e => setStartDate(e.target.value), className: "mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-white p-2" })
+                  ),
+                  React.createElement("div", { className: "flex-1" },
+                    React.createElement("label", { htmlFor: "endDate", className: "block text-sm font-medium text-gray-400" }, "End Date"),
+                    React.createElement("input", { type: "date", id: "endDate", value: endDate, onChange: e => setEndDate(e.target.value), className: "mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-white p-2" })
+                  )
+                );
+              case ReportType.DAILY:
+                return React.createElement("div", { className: "flex-1" },
+                  React.createElement("label", { htmlFor: "date", className: "block text-sm font-medium text-gray-400" }, "Date"),
+                  React.createElement("input", { type: "date", id: "date", value: date, onChange: e => setDate(e.target.value), className: "mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-white p-2" })
+                );
+              default:
+                return null;
+            }
+          };
+
+          return React.createElement("form", { onSubmit: handleSubmit, className: "space-y-6" },
+            React.createElement("div", null,
+              React.createElement("label", { className: "block text-lg font-medium text-white mb-3" }, "Report Type"),
+              React.createElement("div", { className: "grid grid-cols-3 gap-2 rounded-lg bg-gray-700 p-1" },
+                Object.values(ReportType).map((type) =>
+                  React.createElement("button", {
+                    key: type,
+                    type: "button",
+                    onClick: () => setReportType(type),
+                    className: `w-full py-2 text-sm font-medium rounded-md transition-colors ${reportType === type ? 'bg-indigo-600 text-white shadow' : 'text-gray-300 hover:bg-gray-600'}`
+                  }, type.charAt(0).toUpperCase() + type.slice(1))
+                )
+              )
+            ),
+            React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-end" },
+              reportType === ReportType.EMPLOYEE && React.createElement("div", { className: "lg:col-span-1" },
+                React.createElement("label", { htmlFor: "employeeId", className: "block text-sm font-medium text-gray-400" }, "Employee ID"),
+                React.createElement("input", {
+                  type: "text",
+                  id: "employeeId",
+                  value: employeeId,
+                  onChange: e => setEmployeeId(e.target.value),
+                  className: "mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-white p-2",
+                  placeholder: "Enter Employee ID..."
+                })
+              ),
+              React.createElement("div", { className: `col-span-1 md:col-span-2 flex gap-4 ${reportType === ReportType.EMPLOYEE ? 'lg:col-span-2' : 'lg:col-span-3'}` },
+                renderDateInputs()
+              )
+            ),
+            React.createElement("div", { className: "pt-2" },
+              React.createElement("button", {
+                type: "submit",
+                disabled: isLoading,
+                className: "w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-indigo-400 disabled:cursor-not-allowed transition-colors"
+              }, isLoading ? 'Generating...' : 'Generate Report')
+            )
+          );
+        };
+        return { ReportControls };
+      };
+
+      // --- Module: components/ReportDisplay.tsx ---
+      const createReportDisplayModule = () => {
+        const { SummaryCard } = createSummaryCardModule();
+        const { ClockIcon, UsersIcon, UserIcon, BriefcaseIcon, CalendarIcon } = createIconsModule();
+        
+        const formatTime = (isoString) => {
+            if (!isoString) { return ""; }
+            try {
+                const dateObj = new Date(isoString);
+                if (isNaN(dateObj.getTime())) { return isoString; }
+                return dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+            } catch (e) { return isoString; }
+        };
+
+        const ReportDisplay = ({ data, isLoading, error, employees }) => {
+          const processedData = useMemo(() => {
+            if (!data) {
+                return { workShifts: [], consolidatedData: null, summary: { totalEmployees: 0, totalWorkHours: 0, totalOvertimeHours: 0, employeeName: undefined, jobTitle: undefined } };
+            }
+            
+            const validRecords = data.records ? data.records.filter(r => r.timestamp && !isNaN(new Date(r.timestamp).getTime())) : [];
+
+            let recordsToProcess = validRecords;
+            if (data.params.reportType === ReportType.DAILY && data.params.date) {
+                recordsToProcess = validRecords.filter(r => r.timestamp.startsWith(data.params.date));
+            }
+            
+            const dailyGroups = {};
+            for (const record of recordsToProcess) {
+              const recordDate = new Date(record.timestamp).toISOString().split('T')[0];
+              const key = `${recordDate}_${record.employeeId}`;
+              if (!dailyGroups[key]) { dailyGroups[key] = []; }
+              dailyGroups[key].push(record);
+            }
+
+            let workShifts = Object.values(dailyGroups).map((group) => {
+              group.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+              const checkIns = group.filter(r => r.movementType.includes('دخول'));
+              const checkOuts = group.filter(r => r.movementType.includes('انصراف'));
+              let firstCheckIn = checkIns.length > 0 ? checkIns[0] : null;
+              let lastCheckOut = checkOuts.length > 0 ? checkOuts[checkOuts.length - 1] : null;
+              if (firstCheckIn && lastCheckOut && new Date(lastCheckOut.timestamp).getTime() <= new Date(firstCheckIn.timestamp).getTime()) {
+                lastCheckOut = null;
+              }
+              let workHours = 0;
+              let overtimeHours = 0;
+              if (firstCheckIn && lastCheckOut) {
+                const diffMillis = new Date(lastCheckOut.timestamp).getTime() - new Date(firstCheckIn.timestamp).getTime();
+                workHours = diffMillis / (1000 * 60 * 60);
+                overtimeHours = Math.max(0, workHours - 9);
+              }
+              const refRecord = group[0];
+              const employee = employees.find(e => e.id === refRecord.employeeId);
+              return {
+                date: refRecord.timestamp.split('T')[0],
+                employeeId: refRecord.employeeId,
+                employeeName: refRecord.employeeName,
+                jobTitle: employee?.jobTitle ?? '',
+                checkIn: firstCheckIn?.timestamp,
+                checkOut: lastCheckOut?.timestamp,
+                workHours,
+                overtimeHours,
+              };
+            });
+
+            let consolidatedData = null;
+            if (data.params.reportType === ReportType.RANGE) {
+              const employeeAggregation = {};
+              for (const shift of workShifts) {
+                if (shift.workHours > 0) {
+                  if (!employeeAggregation[shift.employeeId]) {
+                    const employee = employees.find(e => e.id === shift.employeeId);
+                    employeeAggregation[shift.employeeId] = {
+                      employeeId: shift.employeeId,
+                      employeeName: shift.employeeName,
+                      jobTitle: employee?.jobTitle ?? '',
+                      workDays: 0,
+                      totalWorkHours: 0,
+                      totalOvertimeHours: 0,
+                    };
+                  }
+                  employeeAggregation[shift.employeeId].workDays++;
+                  employeeAggregation[shift.employeeId].totalWorkHours += shift.workHours;
+                  employeeAggregation[shift.employeeId].totalOvertimeHours += shift.overtimeHours;
+                }
+              }
+              consolidatedData = Object.values(employeeAggregation).sort((a, b) => a.employeeName.localeCompare(b.employeeName));
+            }
+            
+            const employeeForSummary = data.params.employeeId ? employees.find(e => e.id === data.params.employeeId) : null;
+            const summary = {
+              employeeName: data.params.reportType === ReportType.EMPLOYEE ? (employeeForSummary?.name ?? data.params.employeeId) : undefined,
+              jobTitle: data.params.reportType === ReportType.EMPLOYEE ? (employeeForSummary?.jobTitle) : undefined,
+              totalEmployees: new Set(workShifts.map(s => s.employeeId)).size,
+              totalWorkHours: workShifts.reduce((acc, s) => acc + s.workHours, 0),
+              totalOvertimeHours: workShifts.reduce((acc, s) => acc + s.overtimeHours, 0),
+            };
+
+            return { workShifts, consolidatedData, summary };
+          }, [data, employees]);
+
+          if (isLoading) return React.createElement("div", { className: "text-center py-12" }, React.createElement("div", { className: "animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-400 mx-auto" }), React.createElement("p", { className: "mt-4 text-gray-400" }, "Fetching and analyzing data..."));
+          if (error) return React.createElement("div", { className: "bg-red-900 border border-red-600 text-red-200 px-4 py-3 rounded-lg", role: "alert" }, React.createElement("strong", { className: "font-bold" }, "Error:"), React.createElement("span", { className: "block sm:inline ml-2" }, error));
+          if (!data) return React.createElement("div", { className: "text-center py-12 bg-gray-800 rounded-lg" }, React.createElement("h2", { className: "text-xl font-medium text-white" }, "No Report Generated"), React.createElement("p", { className: "mt-2 text-gray-400" }, "Use the controls above to generate a report."));
+
+          const { params } = data;
+          const { workShifts, consolidatedData, summary } = processedData;
+
+          const renderSummary = () => {
+            if (params.reportType === ReportType.EMPLOYEE) {
+              return React.createElement(React.Fragment, null,
+                React.createElement("div", { className: "flex justify-between items-center mb-6" },
+                  React.createElement("div", null,
+                    React.createElement("h3", { className: "text-2xl font-bold text-white" }, summary.employeeName),
+                    React.createElement("p", { className: "text-md text-gray-400" }, summary.jobTitle)
+                  ),
+                  React.createElement("div", { className: "text-right" },
+                    React.createElement("p", { className: "text-sm text-gray-400" }, "Report Period"),
+                    React.createElement("p", { className: "text-md font-semibold text-white" }, `${params.startDate} to ${params.endDate}`)
+                  )
+                ),
+                React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-2 gap-6" },
+                  React.createElement(SummaryCard, { icon: React.createElement(ClockIcon, null), title: "Total Work Hours", value: `${summary.totalWorkHours.toFixed(2)}h` }),
+                  React.createElement(SummaryCard, { icon: React.createElement(ClockIcon, { className: "text-yellow-400" }), title: "Total Overtime", value: `${summary.totalOvertimeHours.toFixed(2)}h` })
+                )
+              );
+            }
+            return React.createElement("div", { className: "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" },
+              React.createElement(SummaryCard, { icon: React.createElement(UsersIcon, null), title: "Total Employees", value: summary.totalEmployees.toString() }),
+              React.createElement(SummaryCard, { icon: React.createElement(ClockIcon, null), title: "Total Work Hours", value: `${summary.totalWorkHours.toFixed(2)}h` }),
+              React.createElement(SummaryCard, { icon: React.createElement(ClockIcon, { className: "text-yellow-400" }), title: "Total Overtime", value: `${summary.totalOvertimeHours.toFixed(2)}h` })
+            );
+          };
+
+          const renderTable = () => {
+            if (params.reportType === ReportType.RANGE) {
+              if (!consolidatedData || consolidatedData.length === 0) return React.createElement("p", { className: "text-center text-gray-400 mt-8" }, "No valid work shifts found for the selected criteria.");
+              return React.createElement("div", { className: "overflow-x-auto" }, React.createElement("table", { className: "min-w-full divide-y divide-gray-700" },
+                React.createElement("thead", { className: "bg-gray-900" }, React.createElement("tr", null,
+                  React.createElement("th", { scope: "col", className: "px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider" }, "#"),
+                  React.createElement("th", { scope: "col", className: "px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider" }, "Employee ID"),
+                  React.createElement("th", { scope: "col", className: "px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider" }, "Name"),
+                  React.createElement("th", { scope: "col", className: "px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider" }, "Job Title"),
+                  React.createElement("th", { scope: "col", className: "px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider" }, "Work Days"),
+                  React.createElement("th", { scope: "col", className: "px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider" }, "Total Work Hours"),
+                  React.createElement("th", { scope: "col", className: "px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider" }, "Total Overtime")
+                )),
+                React.createElement("tbody", { className: "bg-gray-800 divide-y divide-gray-700" },
+                  consolidatedData.map((emp, index) => React.createElement("tr", { key: emp.employeeId, className: "hover:bg-gray-700" },
+                    React.createElement("td", { className: "px-4 py-4 whitespace-nowrap text-sm text-gray-400" }, index + 1),
+                    React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-400" }, emp.employeeId),
+                    React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-200" }, emp.employeeName),
+                    React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-400" }, emp.jobTitle),
+                    React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-200" }, emp.workDays),
+                    React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm font-semibold text-white" }, emp.totalWorkHours.toFixed(2)),
+                    React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm font-semibold text-yellow-400" }, emp.totalOvertimeHours.toFixed(2))
+                  ))
+                )
+              ));
+            }
+
+            if (!workShifts || workShifts.length === 0) return React.createElement("p", { className: "text-center text-gray-400 mt-8" }, "No records found for the selected criteria.");
+
+            return React.createElement("div", { className: "overflow-x-auto" }, React.createElement("table", { className: "min-w-full divide-y divide-gray-700" },
+              React.createElement("thead", { className: "bg-gray-900" }, React.createElement("tr", null,
+                React.createElement("th", { scope: "col", className: "px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider" }, "#"),
+                params.reportType !== ReportType.DAILY && React.createElement("th", { scope: "col", className: "px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider" }, "Date"),
+                React.createElement("th", { scope: "col", className: "px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider" }, "Employee ID"),
+                React.createElement("th", { scope: "col", className: "px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider" }, "Name"),
+                React.createElement("th", { scope: "col", className: "px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider" }, "Job Title"),
+                React.createElement("th", { scope: "col", className: "px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider" }, "Check-in Time"),
+                React.createElement("th", { scope: "col", className: "px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider" }, "Check-out Time"),
+                React.createElement("th", { scope: "col", className: "px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider" }, "Work Hours"),
+                React.createElement("th", { scope: "col", className: "px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider" }, "Overtime")
+              )),
+              React.createElement("tbody", { className: "bg-gray-800 divide-y divide-gray-700" },
+                workShifts.map((shift, index) => React.createElement("tr", { key: `${shift.employeeId}-${shift.date}-${index}`, className: `hover:bg-gray-700 ${shift.workHours < 2 ? 'bg-amber-800 bg-opacity-50' : ''}` },
+                  React.createElement("td", { className: "px-4 py-4 whitespace-nowrap text-sm text-gray-400" }, index + 1),
+                  params.reportType !== ReportType.DAILY && React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-400" }, shift.date),
+                  React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-400" }, shift.employeeId),
+                  React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-200" }, shift.employeeName),
+                  React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-400" }, shift.jobTitle),
+                  React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-200" }, formatTime(shift.checkIn)),
+                  React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-200" }, formatTime(shift.checkOut)),
+                  React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm font-semibold text-white" }, shift.workHours.toFixed(2)),
+                  React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm font-semibold text-yellow-400" }, shift.overtimeHours.toFixed(2))
+                ))
+              )
+            ));
+          };
+
+          const getReportTitle = () => {
+            switch (params.reportType) {
+              case ReportType.DAILY: return `Daily Report for ${params.date}`;
+              case ReportType.RANGE: return `Consolidated Range Report`;
+              case ReportType.EMPLOYEE: return `Detailed Employee Report`;
+              default: return "Report Results";
+            }
+          };
+
+          return React.createElement("div", { className: "space-y-8" },
+            React.createElement("div", { className: "bg-gray-800 shadow-xl rounded-lg p-6" },
+              React.createElement("div", { className: "flex justify-between items-start" },
+                React.createElement("h2", { className: "text-2xl font-bold text-white mb-6 flex items-center" }, React.createElement(CalendarIcon, { className: "mr-3" }), getReportTitle()),
+                (params.reportType === ReportType.RANGE || params.reportType === ReportType.EMPLOYEE) && React.createElement("div", { className: "text-right" },
+                  React.createElement("p", { className: "text-sm text-gray-400" }, "Period"),
+                  React.createElement("p", { className: "text-md font-semibold text-white" }, `${params.startDate} to ${params.endDate}`)
+                )
+              ),
+              renderSummary()
+            ),
+            React.createElement("div", { className: "bg-gray-800 shadow-xl rounded-lg p-6" },
+              React.createElement("h3", { className: "text-xl font-semibold text-white mb-4" }, params.reportType === ReportType.RANGE ? 'Consolidated Data' : 'Detailed Records'),
+              renderTable()
+            )
+          );
+        };
+        return { ReportDisplay };
+      };
+      
+      // --- Module: App.tsx ---
+      const createAppModule = () => {
+        const { ReportControls } = createReportControlsModule();
+        const { ReportDisplay } = createReportDisplayModule();
+        const { fetchReport, fetchEmployees } = createGoogleSheetsServiceModule();
+
+        const App = () => {
+          const [reportData, setReportData] = useState(null);
+          const [isLoading, setIsLoading] = useState(false);
+          const [error, setError] = useState(null);
+          const [employees, setEmployees] = useState([]);
+
+          const getEmployees = useCallback(async () => {
+            try {
+              const fetchedEmployees = await fetchEmployees();
+              setEmployees(fetchedEmployees);
+            } catch (err) {
+              setError('Failed to fetch employee list. Please ensure the Google Apps Script is deployed and the URL is correct.');
+              console.error(err);
+            }
+          }, []);
+
+          useEffect(() => {
+            getEmployees();
+          }, []);
+
+          const handleGenerateReport = async (params) => {
+            setIsLoading(true);
+            setError(null);
+            setReportData(null);
+
+            let effectiveParams = { ...params };
+            if (params.reportType !== ReportType.EMPLOYEE) {
+                effectiveParams.reportType = ReportType.RANGE;
+            }
+
+            try {
+              const data = await fetchReport(effectiveParams);
+              data.params = params; // Restore original params for display logic
+              setReportData(data);
+            } catch (err) {
+              setError(`Failed to generate report: ${err.message}. Check the console for more details.`);
+              console.error(err);
+            } finally {
+              setIsLoading(false);
+            }
+          };
+
+          return React.createElement("div", { className: "min-h-screen bg-gray-900 text-gray-100 font-sans" },
+            React.createElement("div", { className: "container mx-auto p-4 md:p-8" },
+              React.createElement("header", { className: "text-center mb-8" },
+                React.createElement("h1", { className: "text-4xl md:text-5xl font-bold text-white tracking-tight" }, "Employee Movement Reports"),
+                React.createElement("p", { className: "text-lg text-gray-400 mt-2" }, "Analyze data directly from your Google Sheet")
+              ),
+              React.createElement("main", null,
+                React.createElement("div", { className: "bg-gray-800 shadow-2xl rounded-lg p-6 mb-8" },
+                  React.createElement(ReportControls, { onGenerateReport: handleGenerateReport, isLoading: isLoading })
+                ),
+                React.createElement(ReportDisplay, { data: reportData, isLoading: isLoading, error: error, employees: employees })
+              ),
+              React.createElement("footer", { className: "text-center mt-12 text-gray-500" },
+                React.createElement("p", null, "Powered by Google Apps Script & React")
+              )
+            )
+          );
+        };
+        return App;
+      };
+
+      // --- Main Execution Block ---
+      const App = createAppModule();
+      const rootElement = document.getElementById('root');
+      if (!rootElement) {
+        throw new Error("Could not find root element to mount to");
+      }
+      const root = ReactDOM.createRoot(rootElement);
+      root.render(React.createElement(React.StrictMode, null, React.createElement(App, null)));
+
+      // --- End of Embedded App Code ---
+    </script>
+  </body>
+</html>
