@@ -6,13 +6,15 @@
     <title>Google Sheets Report Generator</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="importmap">
-      {
-        "imports": {
-          "react": "https://esm.sh/react@18.2.0",
-          "react-dom/client": "https://esm.sh/react-dom@18.2.0/client"
-        }
-      }
-    </script>
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.2.0",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/"
+  }
+}
+</script>
   </head>
   <body class="bg-gray-900 text-gray-100 font-sans">
     <div id="root"></div>
@@ -25,7 +27,6 @@
       // --- Start of Embedded Application Code ---
 
       // --- Module: types.js ---
-      // Enums and interfaces are represented as plain JavaScript objects and comments
       const ReportType = {
         EMPLOYEE: 'employee',
         DAILY: 'daily',
@@ -209,12 +210,14 @@
         const { ClockIcon, UsersIcon, BriefcaseIcon, CalendarIcon } = Icons;
         
         const formatTime = (isoString) => {
-            if (!isoString) { return ""; }
+            if (!isoString) { return { time: '', date: '' }; }
             try {
                 const dateObj = new Date(isoString);
-                if (isNaN(dateObj.getTime())) { return ""; }
-                return dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-            } catch (e) { return ""; }
+                if (isNaN(dateObj.getTime())) { return { time: '', date: '' }; }
+                const time = dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+                const date = dateObj.toISOString().split('T')[0];
+                return { time, date };
+            } catch (e) { return { time: '', date: '' }; }
         };
 
         const processedData = useMemo(() => {
@@ -383,8 +386,8 @@
                 React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-400" }, shift.employeeId),
                 React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-200" }, shift.employeeName),
                 React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-400" }, shift.jobTitle),
-                React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-200" }, formatTime(shift.checkIn)),
-                React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-200" }, formatTime(shift.checkOut)),
+                React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-200" }, formatTime(shift.checkIn).time),
+                React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm text-gray-200" }, formatTime(shift.checkOut).time),
                 React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm font-semibold text-white" }, shift.workHours.toFixed(2)),
                 React.createElement("td", { className: "px-6 py-4 whitespace-nowrap text-sm font-semibold text-yellow-400" }, shift.overtimeHours.toFixed(2))
               ))
@@ -498,3 +501,4 @@
     </script>
   </body>
 </html>
+```
